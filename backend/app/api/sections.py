@@ -1,13 +1,6 @@
 from fastapi import APIRouter
 from typing import List
 from app.models.schemas import UIFieldSchema
-import sys
-from pathlib import Path
-
-# Add core src to path if running side-by-side with OsdagBridge
-CORE_DIR = Path(__file__).resolve().parents[4] / "osdag-admin_OsdagBridge_dev" / "OsdagBridge" / "src"
-if CORE_DIR.exists() and str(CORE_DIR) not in sys.path:
-    sys.path.insert(0, str(CORE_DIR))
 
 router = APIRouter(prefix="/sections", tags=["Schema"])
 @router.get("/rolled", response_model=[])

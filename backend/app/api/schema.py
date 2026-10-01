@@ -1,13 +1,6 @@
 from fastapi import APIRouter
 from typing import List
 from app.models.schemas import UIFieldSchema
-import sys
-from pathlib import Path
-
-# Add core src to path if running side-by-side with OsdagBridge
-CORE_DIR = Path(__file__).resolve().parents[4] / "osdag-admin_OsdagBridge_dev" / "OsdagBridge" / "src"
-if CORE_DIR.exists() and str(CORE_DIR) not in sys.path:
-    sys.path.insert(0, str(CORE_DIR))
 
 router = APIRouter(prefix="/schema", tags=["Schema"])
 @router.get("", response_model=List[UIFieldSchema])
@@ -25,36 +18,82 @@ def get_basic_input_schema():
         '''
         from osdagbridge.core.bridge_types.plate_girder.ui_fields import FrontendData
         from osdagbridge.core.bridge_types.plate_girder.defaults import BASIC_INPUT_DICT
+        from osdagbridge.core.utils.common import SPAN_MIN, SPAN_MAX, CARRIAGEWAY_WIDTH_MIN, CARRIAGEWAY_WIDTH_MIN_WITH_MEDIAN, CARRIAGEWAY_WIDTH_MAX_LIMIT, SKEW_ANGLE_MIN, SKEW_ANGLE_MAX, SKEW_ANGLE_DEFAULT
+
 
         print("FrontendData =", FrontendData)
         print("BASIC_INPUT_DICT =", BASIC_INPUT_DICT)
 
         fields = FrontendData().input_values()
         NEW_SCHEMA: List[UIFieldSchema] = []
+
+        #dictionary containing the min and max values for different fields
+        min_max_dict = {
+            "geometry.span": {"min": SPAN_MIN, "max": SPAN_MAX},
+            "geometry.carriageway_width": {"min": CARRIAGEWAY_WIDTH_MIN, "max": CARRIAGEWAY_WIDTH_MAX_LIMIT},
+            "geometry.skew_angle": {"min": SKEW_ANGLE_MIN, "max": SKEW_ANGLE_MAX}
+        }
+
+        #dictionary containing the units for the different fields, derived from the Desktop version
+        units_dict = {
+            "geometry.span": "m",
+            "geometry.carriageway_width": "m",
+            "geometry.skew_angle": "°"
+        }
+
+        current_group = None
         for field in fields:
 
-            common_schema_data = {  #these properties are common to all ui fields 
-                "id": field[0],
+            schema_data = {  
+                "key": field[0],
                 "label": field[1],
-                "type": field[2]
+                "ui_type": field[2],
+                "default": field[6].get("default"),
+                "min": None,
+                "max": None,
+                "unit": None,
+                "container": field[6].get("container", "main"),
+                "group": current_group,
+                "options": [],
+                "placeholder": field[6].get("placeholder"),
+                "required": field[6].get("required", False),
+                "action": field[6].get("action"),
+                "visibility": field[4],
+                "validator": field[5]
             }
-
             #Below as per the conditions values are omitted or included in the schema data
+
+            #module type fields are skipped
+            if(field[2] == "module"):
+                continue
+
+            #title fields are skipped after setting the current_group as their label
+            if(field[2] == "title"):
+                current_group = field[1] #the label
+                continue
+
+            #condition 1: If the field has a min, max value it is taken from the min_max_dict
+            if(field[0] in min_max_dict):
+                schema_data["min"] = min_max_dict[field[0]].get("min")
+                schema_data["max"] = min_max_dict[field[0]].get("max")
+
+            #condition 2: If the field has a unit then take it from the unit dictionary
+            if(field[0]in units_dict):
+                schema_data["unit"] = units_dict[field[0]]
             
-            #condition 1: All fields in BASIC_INPUT_DICT have a default value
+            #condition 3: All fields in BASIC_INPUT_DICT have a default value
             if(field[0] in BASIC_INPUT_DICT): 
-                common_schema_data["default_value"] = BASIC_INPUT_DICT[field[0]]
+                schema_data["default"] = BASIC_INPUT_DICT[field[0]]
 
-            #condition 2: If type is combobox then include options property
+            #condition 4: If type is combobox then include options property
             if(field[2] == "combobox"):
-                common_schema_data["options"] = field[3]
+                schema_data["options"] = field[3]
 
-            #condition 3: If type is textbox then include unit property
-            if(field[2] == "textbox"):
-                common_schema_data["unit"] = "m"
+            #condition 5: Set the group as the current_group
+            schema_data["group"] = current_group
 
             #As all values need to be included, unpack the dictionary and append into NEW_SCHEMA
-            NEW_SCHEMA.append(UIFieldSchema(**common_schema_data))
+            NEW_SCHEMA.append(UIFieldSchema(**schema_data))
     except ImportError as e:
         print("CORE IMPORT ERROR:", e)
         raise

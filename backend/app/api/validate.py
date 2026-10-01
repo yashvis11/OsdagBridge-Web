@@ -1,13 +1,5 @@
 from fastapi import APIRouter
 from app.models.schemas import ValidateFieldRequest, ValidateFieldResponse
-import sys
-from pathlib import Path
-
-CORE_DIR = Path(__file__).resolve().parents[4] / "osdag-admin_OsdagBridge_dev" / "OsdagBridge" / "src"
-
-
-if CORE_DIR.exists() and str(CORE_DIR) not in sys.path:
-    sys.path.insert(0, str(CORE_DIR))
 
 router = APIRouter(prefix="/validate", tags=["Validation"])
 @router.post("", response_model=ValidateFieldResponse)

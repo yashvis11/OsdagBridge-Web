@@ -3,12 +3,28 @@ from typing import Optional, List, Dict, Any, Union
 
 #Changed label property to Optional[str] = None to accommodate module type ui fields with "None" as label
 class UIFieldSchema(BaseModel):
-    id: str
-    label: Optional[str] = None  
-    type: str = Field(..., description="'number' | 'text' | 'select' | 'button'")
-    default_value: Optional[Union[float, int, str, bool]] = None
+    key: str
+    label: Optional[str] = None
+    ui_type: str = Field(..., description="'number' | 'text' | 'select' | 'button'")
+    default: Optional[Union[float, int, str, bool]] = None
+    min: Optional[float] = None
+    max: Optional[float] = None
     unit: Optional[str] = None
+    container: Optional[str] = "main"
+    group: Optional[str] = "General"
     options: Optional[List[str]] = []
+    placeholder: Optional[str] = None
+    required: bool = False
+    action: Optional[str] = None
+    visibility: Optional[bool] = True
+    validator: Optional[str ] = None
+
+    # id: str
+    # label: Optional[str] = None  
+    # type: str = Field(..., description="'number' | 'text' | 'select' | 'button'")
+    # default_value: Optional[Union[float, int, str, bool]] = None
+    # unit: Optional[str] = None
+    # options: Optional[List[str]] = []
 
 class ValidateFieldRequest(BaseModel):
     key: str
