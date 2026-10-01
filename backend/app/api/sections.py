@@ -2,8 +2,8 @@ from fastapi import APIRouter
 from typing import List
 from app.models.schemas import UIFieldSchema
 
-router = APIRouter(prefix="/sections", tags=["Schema"])
-@router.get("/rolled", response_model=[])
+router = APIRouter(prefix="/sections", tags=["Sections"])
+@router.get("/rolled", response_model=List[Dict[str, Any]])
 def get_rolled_sections():
     """
     Returns the sections from the core database as a READ only
@@ -16,7 +16,6 @@ def get_rolled_sections():
         rolled_section_result = []
 
         for section in sections.values():  #value provides the BeamSection object and all its properties instead of just the designation
-            print(section.designation, repr(section.type_name))
             rolled_section_result.append({
                 "designation": section.designation,                 
                 "type_name": section.type_name,

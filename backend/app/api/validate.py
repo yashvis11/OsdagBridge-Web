@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.models.schemas import ValidateFieldRequest, ValidateFieldResponse
 
 router = APIRouter(prefix="/validate", tags=["Validation"])
+@router.post("/field", response_model=ValidateFieldResponse)
 @router.post("", response_model=ValidateFieldResponse)
 def validate_field(payload: ValidateFieldRequest):
     """

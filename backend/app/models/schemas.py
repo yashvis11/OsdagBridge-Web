@@ -19,13 +19,6 @@ class UIFieldSchema(BaseModel):
     visibility: Optional[bool] = True
     validator: Optional[str ] = None
 
-    # id: str
-    # label: Optional[str] = None  
-    # type: str = Field(..., description="'number' | 'text' | 'select' | 'button'")
-    # default_value: Optional[Union[float, int, str, bool]] = None
-    # unit: Optional[str] = None
-    # options: Optional[List[str]] = []
-
 class ValidateFieldRequest(BaseModel):
     key: str
     value: Any

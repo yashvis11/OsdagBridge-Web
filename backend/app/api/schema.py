@@ -3,6 +3,7 @@ from typing import List
 from app.models.schemas import UIFieldSchema
 
 router = APIRouter(prefix="/schema", tags=["Schema"])
+@router.get("/basic", response_model=List[UIFieldSchema])
 @router.get("", response_model=List[UIFieldSchema])
 def get_basic_input_schema():
     """
@@ -20,9 +21,6 @@ def get_basic_input_schema():
         from osdagbridge.core.bridge_types.plate_girder.defaults import BASIC_INPUT_DICT
         from osdagbridge.core.utils.common import SPAN_MIN, SPAN_MAX, CARRIAGEWAY_WIDTH_MIN, CARRIAGEWAY_WIDTH_MIN_WITH_MEDIAN, CARRIAGEWAY_WIDTH_MAX_LIMIT, SKEW_ANGLE_MIN, SKEW_ANGLE_MAX, SKEW_ANGLE_DEFAULT
 
-
-        print("FrontendData =", FrontendData)
-        print("BASIC_INPUT_DICT =", BASIC_INPUT_DICT)
 
         fields = FrontendData().input_values()
         NEW_SCHEMA: List[UIFieldSchema] = []
@@ -69,7 +67,8 @@ def get_basic_input_schema():
 
             #title fields are skipped after setting the current_group as their label
             if(field[2] == "title"):
-                current_group = field[1] #the label
+                if(field[1]):
+                    current_group = field[1] #the label
                 continue
 
             #condition 1: If the field has a min, max value it is taken from the min_max_dict
