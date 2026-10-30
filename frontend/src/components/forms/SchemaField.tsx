@@ -1,123 +1,504 @@
-import React from 'react';
+/**
+ * SchemaField.tsx
+ *
+ * Input field renderer for Highway Bridge Design GUI.
+ * Mirrors the field-row building logic of osdagbridge.desktop.ui.docks.input_dock.
+ *
+ * Design principles (adapted from desktop input_dock.py):
+ *   - Label comes from field.label (tuple[1] in desktop).
+ *   - Defaults live in field.default.
+ *   - TYPE_BUTTON and TYPE_NOTE are first-class field rows.
+ *   - Direct if-else branching for field types matching desktop field creation:
+ *       if type in COMBOBOX: render combobox
+ *       elif type in TEXTBOX / LINE_EDIT: render textbox
+ *       elif type in BUTTON: render button
+ *       elif type in NOTE: render note
+ *       elif type in CHECKBOX: render checkbox
+ *
+ * Validation:
+ *   - On blur (text/number) or on change (select), calls POST /api/v1/validate.
+ *   - If the backend reports valid === false the backend message is surfaced via
+ *     FieldError; the user's typed value is preserved unchanged.
+ *   - If the backend is unreachable, validation is silently skipped.
+ *   - No validation logic is implemented client-side in this component;
+ *     all constraints come from the backend response.
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { UIFieldSchema } from '../../types/schema';
 import { useBridgeStore } from '../../store/useBridgeStore';
-import { MapPin, AlertCircle } from 'lucide-react';
+import { validateField } from '../../services/api';
+import { AlertCircle } from 'lucide-react';
+import {
+  TYPE_BUTTON,
+  TYPE_COMBOBOX,
+  TYPE_COMBO_BOX,
+  TYPE_TEXTBOX,
+  TYPE_LINE_EDIT,
+  TYPE_NOTE,
+  TYPE_CHECKBOX,
+} from '../../utils/bridgeInputs';
 
-interface SchemaFieldProps {
-  field: UIFieldSchema;
-}
+// ── Shared Sub-Components ──────────────────────────────────────────────────────
 
-export const SchemaField: React.FC<SchemaFieldProps> = ({ field }) => {
-  const { inputs, updateField, validateFieldLive, validationErrors, setLocationModalOpen } = useBridgeStore();
-  const value = inputs[field.key] ?? field.default ?? '';
-  const error = validationErrors[field.key];
+const labelStyle: React.CSSProperties = {
+  minWidth: '110px',
+  maxWidth: '120px',
+  fontSize: '12px',
+  color: 'var(--text-main)',
+  fontWeight: 500,
+  lineHeight: 1.25,
+};
 
-  const handleBlur = () => {
-    validateFieldLive(field.key, value);
-  };
-
-  if (field.ui_type === 'button') {
-    return (
-      <div style={{ marginBottom: '12px' }}>
-        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-sub)', marginBottom: '4px' }}>
-          {field.label} {field.required && <span style={{ color: 'var(--danger)' }}>*</span>}
-        </label>
-        <button
-          type="button"
-          onClick={() => {
-            if (field.action === 'open_project_location_modal') {
-              setLocationModalOpen(true);
-            }
-          }}
-          style={{
-            width: '100%',
-            padding: '7px 10px',
-            background: '#ffffff',
-            border: '1px solid var(--border-color)',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '12px',
-            textAlign: 'left',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            color: value ? 'var(--text-main)' : 'var(--text-sub)'
-          }}
-        >
-          <span>{value || 'Select Location...'}</span>
-          <MapPin size={15} color="var(--accent-osdag)" />
-        </button>
-      </div>
-    );
+function FieldLabel({ field, htmlFor }: { field: UIFieldSchema; htmlFor?: string }) {
+  let displayLabel = field.label;
+  if (field.required) {
+    if (displayLabel.includes('\n')) {
+      const idx = displayLabel.indexOf('\n');
+      displayLabel = displayLabel.slice(0, idx) + '*' + displayLabel.slice(idx);
+    } else {
+      displayLabel = displayLabel + '*';
+    }
   }
 
   return (
-    <div style={{ marginBottom: '12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-sub)' }}>
-          {field.label} {field.required && <span style={{ color: 'var(--danger)' }}>*</span>}
-        </label>
-        {field.unit && (
-          <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', background: '#e2e8f0', color: '#475569', padding: '1px 4px', borderRadius: '3px' }}>
-            {field.unit}
-          </span>
-        )}
-      </div>
+    <label htmlFor={htmlFor} style={{ ...labelStyle, whiteSpace: 'pre-line' }}>
+      {displayLabel}
+    </label>
+  );
+}
 
-      {field.ui_type === 'select' ? (
-        <select
-          value={value}
-          onChange={(e) => {
-            updateField(field.key, e.target.value);
-            validateFieldLive(field.key, e.target.value);
+function FieldError({ id, error }: { id: string; error?: string }) {
+  if (!error) return null;
+  return (
+    <div
+      id={id}
+      role="alert"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        marginTop: '4px',
+        color: 'var(--danger)',
+        fontSize: '11px',
+        paddingLeft: '118px',
+      }}
+    >
+      <AlertCircle size={12} aria-hidden="true" />
+      <span>{error}</span>
+    </div>
+  );
+}
+
+// ── Field Renderers (mirrors desktop widget factories in input_dock.py) ────────
+
+/**
+ * ButtonField — mirrors the metadata-driven TYPE_BUTTON row in input_dock.py.
+ * The schema action selects the supported web callback; the field key does not.
+ * button_label comes from the schema provided by the backend; no hardcoded fallbacks.
+ */
+const ButtonField: React.FC<{ field: UIFieldSchema }> = ({ field }) => {
+  const { inputs, location, isLocked, setLocationModalOpen } = useBridgeStore();
+
+  const opensLocationDialog =
+    field.action === 'show_project_location_dialog' ||
+    field.action === 'open_project_location_modal';
+
+  // Display text: prefer the live location from store, then the stored input value,
+  // then the schema-provided button_label. No hardcoded place names.
+  const locationText = location
+    ? `${location.station}, ${location.state}`
+    : (inputs['project.location'] || null);
+
+  const hasLocation = Boolean(locationText);
+
+  const buttonText = opensLocationDialog
+    ? (locationText || field.button_label || field.label)
+    : (field.button_label || field.label);
+
+  const showPin = field.post_row?.kind === 'info_row' && hasLocation;
+
+  return (
+    <div style={{ marginBottom: field.show_group_title === false ? 0 : '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <FieldLabel field={field} />
+        <button
+          type="button"
+          disabled={isLocked}
+          onClick={() => {
+            if (opensLocationDialog) {
+              setLocationModalOpen(true);
+            }
           }}
+          className="osdag-action-btn"
           style={{
-            width: '100%',
-            padding: '6px 8px',
-            borderRadius: '4px',
-            border: `1px solid ${error ? 'var(--danger)' : 'var(--border-color)'}`,
-            background: '#ffffff',
-            fontSize: '12px',
-            color: 'var(--text-main)',
-            outline: 'none'
+            flex: 1,
+            cursor: isLocked ? 'not-allowed' : 'pointer',
+            opacity: isLocked ? 0.65 : 1,
           }}
         >
-          {field.options?.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          type={field.ui_type === 'number' ? 'number' : 'text'}
-          value={value}
-          placeholder={field.placeholder || ''}
-          onChange={(e) => {
-            const val = field.ui_type === 'number' ? (e.target.value === '' ? '' : parseFloat(e.target.value)) : e.target.value;
-            updateField(field.key, val);
-          }}
-          onBlur={handleBlur}
-          style={{
-            width: '100%',
-            padding: '6px 8px',
-            borderRadius: '4px',
-            border: `1px solid ${error ? 'var(--danger)' : 'var(--border-color)'}`,
-            background: '#ffffff',
-            fontSize: '12px',
-            fontFamily: field.ui_type === 'number' ? 'var(--font-mono)' : 'inherit',
-            color: 'var(--text-main)',
-            outline: 'none'
-          }}
-        />
-      )}
+          {buttonText}
+        </button>
+      </div>
 
-      {error && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', color: 'var(--danger)', fontSize: '11px' }}>
-          <AlertCircle size={12} />
-          <span>{error}</span>
+      {showPin && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginTop: '4px',
+            paddingLeft: '118px',
+            fontSize: '11px',
+            color: 'var(--text-sub)',
+          }}
+        >
+          <span aria-hidden="true">📍</span>
+          <span>{locationText}</span>
         </div>
       )}
     </div>
   );
+};
+
+/**
+ * SelectField — mirrors the desktop combobox factory.
+ * Calls POST /api/v1/validate on change; surfaces backend errors via FieldError.
+ * Disabled schema options remain visible but cannot be selected.
+ */
+const SelectField: React.FC<{ field: UIFieldSchema }> = ({ field }) => {
+  const { inputs, updateField, isLocked } = useBridgeStore();
+  const value = inputs[field.key] ?? field.default ?? '';
+  const options = field.options || [];
+  const fieldId = `field-${field.key}`;
+  const errorId = `${fieldId}-error`;
+
+  const [validationError, setValidationError] = useState<string | undefined>(undefined);
+
+  const handleChange = useCallback(
+    async (newValue: string) => {
+      updateField(field.key, newValue);
+      setValidationError(undefined);
+
+      const allInputs = { ...useBridgeStore.getState().inputs, [field.key]: newValue };
+      const result = await validateField(field.key, newValue, allInputs);
+      if (result && !result.valid) {
+        setValidationError(result.message ?? 'Invalid value.');
+      }
+    },
+    [field.key],
+  );
+
+  return (
+    <div style={{ marginBottom: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <FieldLabel field={field} htmlFor={fieldId} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+          <select
+            id={fieldId}
+            value={value}
+            disabled={isLocked}
+            aria-required={field.required || undefined}
+            aria-describedby={validationError ? errorId : undefined}
+            aria-invalid={validationError ? true : undefined}
+            onChange={(e) => handleChange(e.target.value)}
+            className="osdag-select-field"
+            style={{
+              flex: 1,
+              width: '100%',
+              cursor: isLocked ? 'not-allowed' : 'pointer',
+              opacity: isLocked ? 0.65 : 1,
+            }}
+          >
+            {field.placeholder && (
+              <option value="" disabled>
+                {field.placeholder}
+              </option>
+            )}
+            {options.map((opt) => (
+              <option
+                key={opt}
+                value={opt}
+                disabled={field.disabled_options?.includes(opt)}
+              >
+                {opt}
+              </option>
+            ))}
+          </select>
+          {field.is_material_field && (
+            <button
+              type="button"
+              title="View material properties"
+              aria-label={`View properties for ${field.label}`}
+              onClick={() => { }}
+              style={{
+                width: '20px',
+                height: '20px',
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <img src="/vectors/msg_about.svg" alt="" width={18} height={18} />
+            </button>
+          )}
+        </div>
+      </div>
+      <FieldError id={errorId} error={validationError} />
+    </div>
+  );
+};
+
+/**
+ * CheckboxField — mirrors TYPE_CHECKBOX rows in input_dock.py.
+ */
+const CheckboxField: React.FC<{ field: UIFieldSchema }> = ({ field }) => {
+  const { inputs, updateField, isLocked } = useBridgeStore();
+  const value = inputs[field.key] ?? field.default ?? false;
+  const fieldId = `field-${field.key}`;
+
+  return (
+    <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <FieldLabel field={field} htmlFor={fieldId} />
+      <input
+        id={fieldId}
+        type="checkbox"
+        checked={Boolean(value)}
+        disabled={isLocked}
+        aria-required={field.required || undefined}
+        onChange={(e) => {
+          updateField(field.key, e.target.checked);
+        }}
+        style={{
+          width: '16px',
+          height: '16px',
+          accentColor: 'var(--accent-osdag)',
+          cursor: isLocked ? 'not-allowed' : 'pointer',
+        }}
+      />
+    </div>
+  );
+};
+
+/**
+ * NoteField — mirrors TYPE_NOTE rows in input_dock.py.
+ * Renders an informational text block with a left accent border.
+ */
+const NoteField: React.FC<{ field: UIFieldSchema }> = ({ field }) => (
+  <p
+    role="note"
+    style={{
+      marginBottom: '8px',
+      fontSize: '11px',
+      color: 'var(--text-sub)',
+      lineHeight: 1.4,
+      padding: '6px 8px',
+      background: 'var(--bg-grouped)',
+      borderRadius: '4px',
+      borderLeft: '3px solid var(--accent-osdag)',
+    }}
+  >
+    {field.note || field.label}
+  </p>
+);
+
+/**
+ * TextOrNumberField — mirrors TYPE_TEXTBOX rows in input_dock.py.
+ *
+ * Keeps edits local until confirmed, matching desktop editingFinished.
+ *
+ * Validation:
+ *   - Blur or Enter key commits edits and calls POST /api/v1/validate.
+ *   - Backend response is the single source of truth for validity, error messages,
+ *     and corrected values.
+ *   - For invalid geometric inputs (Span, Carriageway Width, Skew Angle), shows
+ *     an "Input Error" dialog matching desktop behaviour.
+ *   - When the user acknowledges the dialog, the field updates to the backend-provided
+ *     corrected_value (nearest valid value) if present.
+ */
+const TextOrNumberField: React.FC<{ field: UIFieldSchema }> = ({ field }) => {
+  const { inputs, updateField, isLocked, showInputErrorDialog } = useBridgeStore();
+
+  const value = inputs[field.key] ?? field.default ?? '';
+  const [localVal, setLocalVal] = useState<string>(
+    value !== null && value !== undefined ? String(value) : '',
+  );
+  const [validationError, setValidationError] = useState<string | undefined>(undefined);
+
+  const fieldId = `field-${field.key}`;
+  const errorId = `${fieldId}-error`;
+
+  const isNumber =
+    field.ui_type === 'number' ||
+    (field.ui_type === 'textbox' &&
+      (field.min != null ||
+        field.max != null ||
+        field.step != null ||
+        typeof field.default === 'number' ||
+        Boolean(field.unit)));
+
+  // Sync local display value when external store value changes
+  useEffect(() => {
+    setLocalVal(value !== null && value !== undefined ? String(value) : '');
+  }, [value]);
+
+  const isGeometric =
+    field.key === 'geometry.span' ||
+    field.key === 'geometry.carriageway_width' ||
+    field.key === 'geometry.skew_angle';
+
+  const handleTyping = (raw: string) => {
+    setLocalVal(raw);
+    if (validationError) setValidationError(undefined);
+  };
+
+  // ── Enter key — trigger commit and validation via blur ──────────────────────
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      (e.target as HTMLInputElement).blur();
+    }
+  }, []);
+
+  // ── Blur — commit value and validate against backend ──────────────────────
+  const handleBlur = useCallback(async () => {
+    const trimmed = localVal.trim();
+
+    let committed: string | number | null;
+
+    if (!isNumber) {
+      committed = trimmed;
+      updateField(field.key, trimmed);
+    } else if (trimmed === '') {
+      committed = null;
+      updateField(field.key, null);
+    } else {
+      const n = Number(trimmed);
+      if (Number.isNaN(n)) {
+        committed = trimmed;
+        updateField(field.key, trimmed);
+      } else {
+        committed = n;
+        updateField(field.key, n);
+      }
+    }
+
+    const allInputs = { ...useBridgeStore.getState().inputs, [field.key]: committed };
+    const result = await validateField(field.key, committed, allInputs);
+
+    if (result && !result.valid) {
+      const message = result.message ?? 'Invalid value.';
+
+      if (isGeometric) {
+        showInputErrorDialog(message, () => {
+          if (result.corrected_value !== null && result.corrected_value !== undefined) {
+            updateField(field.key, result.corrected_value);
+            setLocalVal(String(result.corrected_value));
+          }
+        });
+      } else {
+        setValidationError(message);
+      }
+    } else {
+      setValidationError(undefined);
+    }
+  }, [field.key, isGeometric, isNumber, localVal, showInputErrorDialog, updateField]);
+
+  const showTrailingUnit = Boolean(field.unit && !field.placeholder && !isGeometric);
+
+  return (
+    <div style={{ marginBottom: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <FieldLabel field={field} htmlFor={fieldId} />
+        <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <input
+            id={fieldId}
+            type="text"
+            inputMode={isNumber ? 'decimal' : 'text'}
+            value={localVal}
+            placeholder={field.placeholder}
+            disabled={isLocked}
+            aria-required={field.required || undefined}
+            aria-describedby={!isGeometric && validationError ? errorId : undefined}
+            aria-invalid={!isGeometric && validationError ? true : undefined}
+            onChange={(e) => handleTyping(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+            className="osdag-input-field"
+            style={{
+              width: '100%',
+              paddingRight: showTrailingUnit ? '32px' : '7px',
+              cursor: isLocked ? 'not-allowed' : 'text',
+              opacity: isLocked ? 0.65 : 1,
+            }}
+          />
+          {showTrailingUnit && (
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                right: '8px',
+                fontSize: '11px',
+                color: 'var(--text-sub)',
+                pointerEvents: 'none',
+              }}
+            >
+              {field.unit}
+            </span>
+          )}
+        </div>
+      </div>
+      {!isGeometric && <FieldError id={errorId} error={validationError} />}
+    </div>
+  );
+};
+
+
+// ── Public Component ───────────────────────────────────────────────────────────
+
+/**
+ * SchemaField
+ *
+ * Direct if-else branching for field types mirroring desktop input_dock.py:
+ *   if field_type == TYPE_BUTTON: ...\
+ *   elif field_type == TYPE_COMBO_BOX: ...
+ *   elif field_type == TYPE_TEXTBOX: ...
+ *   elif field_type == TYPE_CHECKBOX: ...
+ *   elif field_type == TYPE_NOTE: ...
+ */
+export const SchemaField: React.FC<{ field: UIFieldSchema }> = ({ field }) => {
+  const type = (field.ui_type || '').toLowerCase();
+
+  // Desktop field creation branching (mirrors input_dock.py _build_field_loop)
+  if (type === TYPE_BUTTON) {
+    return <ButtonField field={field} />;
+  } else if (
+    type === TYPE_COMBOBOX ||
+    type === TYPE_COMBO_BOX ||
+    type === 'select' ||
+    type === 'dropdown'
+  ) {
+    return <SelectField field={field} />;
+  } else if (
+    type === TYPE_TEXTBOX ||
+    type === TYPE_LINE_EDIT ||
+    type === 'text' ||
+    type === 'number' ||
+    type === 'spin_box' ||
+    type === 'file_browser'
+  ) {
+    return <TextOrNumberField field={field} />;
+  } else if (type === TYPE_CHECKBOX) {
+    return <CheckboxField field={field} />;
+  } else if (type === TYPE_NOTE) {
+    return <NoteField field={field} />;
+  } else {
+    return (
+      <p role="alert" style={{ marginBottom: '8px', color: 'var(--danger)', fontSize: '11px' }}>
+        Unsupported input type &quot;{field.ui_type}&quot; for {field.label}.
+      </p>
+    );
+  }
 };
