@@ -26,6 +26,7 @@ import { OutputDock } from './components/docks/OutputDock';
 import { LogDock } from './components/docks/LogDock';
 import { ProjectLocationModal } from './components/dialogs/ProjectLocationModal';
 import { InputErrorDialog } from './components/dialogs/InputErrorDialog';
+import { ViewportContainer } from './components/viewports/ViewportContainer';
 
 export default function App() {
   const darkMode = useBridgeStore((s) => s.darkMode);
@@ -66,7 +67,12 @@ export default function App() {
             minWidth: 0,
             position: 'relative',
           }}
-        >
+        >          
+          <div style={{ flex: 1, minHeight: 0, paddingBottom: isLogDockOpen ? 190 : 0 }}>
+            <ViewportContainer />
+          </div>
+
+          {/* LogDock anchored to bottom-center of the center panel.
           {/* LogDock anchored to bottom-center of the center panel.
               position:absolute keeps it out of the flex flow so the
               center area above stays free for a future viewport panel.
