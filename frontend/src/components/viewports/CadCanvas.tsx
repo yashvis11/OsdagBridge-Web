@@ -6,8 +6,7 @@ import { fitView } from "../../cad/geometry";
 interface CadCanvasProps<M extends CadModel> { model: M; draw: DrawFn<M> }
 
 const boxStyle: CSSProperties = {
-  position: "relative", width: "100%", height: "100%", minHeight: 200,
-  background: "#fff", overflow: "hidden",
+  position: "absolute", inset: 0, background: "#fff", overflow: "hidden",
 };
 const btnColumn: CSSProperties = {
   position: "absolute", top: 8, right: 8, display: "flex", flexDirection: "column", gap: 4,
@@ -70,7 +69,7 @@ export default function CadCanvas<M extends CadModel>({ model, draw }: CadCanvas
     <div ref={boxRef} style={boxStyle}>
       <canvas
         ref={canvasRef}
-        style={{ display: "block", cursor: "grab" }}
+        style={{ position: "absolute", top: 0, left: 0, display: "block", cursor: "grab" }}
         onMouseDown={(e) => { drag.current = { x: e.clientX, y: e.clientY }; }}
         onMouseMove={(e) => {
           if (!drag.current) return;

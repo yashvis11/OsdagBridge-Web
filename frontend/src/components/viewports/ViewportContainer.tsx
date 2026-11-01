@@ -70,8 +70,8 @@ import React from "react";
 import { CrossSectionView, PlanView } from "./CadViews";
 
 export const ViewportContainer: React.FC = () => (
-  <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#ffffff" }}>
-    <div style={{ flex: 1, minHeight: 0 }}><CrossSectionView /></div>
-    <div style={{ flex: 1, minHeight: 0, borderTop: "1px solid var(--border-color)" }}><PlanView /></div>
+  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "#ffffff" }}>
+    <div style={{ position: "relative", flex: 1, minHeight: 0 }}><CrossSectionView /></div>
+    <div style={{ position: "relative", flex: 1, minHeight: 0, borderTop: "1px solid var(--border-color)" }}><PlanView /></div>
   </div>
 );

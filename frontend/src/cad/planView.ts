@@ -3,6 +3,7 @@ import { num } from "./num";
 import { computeLayout } from "./layout";
 import { toX, toY } from "./geometry";
 import { line, dimH, dimV } from "./drawHelpers";
+import { CAD, W, PLAN_DIM } from "./style";
 
 export interface PlanModel extends CadModel {
   n: number; spacing: number; span: number;
@@ -31,56 +32,66 @@ export function buildPlan(p: FormValues): PlanModel {
   };
 }
 
-const GIRDER = "#8f8f6e";
-const BRACING = "#d2d2bf";
 
 export function drawPlan(ctx: CanvasRenderingContext2D, m: PlanModel, v: View): void {
   const X = (x: number) => toX(x, v);
   const Y = (y: number) => toY(y, v);
   const sx = (y: number) => -m.tanSkew * y;            // skew shift at height y
+  const gy = m.girderY;
 
-  // cross bracing: slanted by the skew, one per panel boundary
-  ctx.strokeStyle = BRACING;
-  ctx.lineWidth = 1.5;
-  for (let k = 0; k <= m.panels; k++) {
+  // cross bracing: one segment per girder pair, interior stations only
+  ctx.strokeStyle = CAD.crossBracing;
+  ctx.lineWidth = W.planBracing;
+  for (let k = 1; k < m.panels; k++) {
     const x0 = k * m.bracingSpacing;
-    line(ctx, X(x0), Y(0), X(x0 + sx(m.width)), Y(m.width));
+    for (let i = 0; i < gy.length - 1; i++) {
+      line(ctx, X(x0 + sx(gy[i])), Y(gy[i]), X(x0 + sx(gy[i + 1])), Y(gy[i + 1]));
+    }
   }
 
-  // girders: thick olive lines, each shifted by the skew at its own height
-  ctx.strokeStyle = GIRDER;
-  ctx.lineWidth = 3;
-  m.girderY.forEach((y) => line(ctx, X(sx(y)), Y(y), X(m.span + sx(y)), Y(y)));
+  // girders
+  ctx.strokeStyle = CAD.girder;
+  ctx.lineWidth = W.planGirder;
+  gy.forEach((y) => line(ctx, X(sx(y)), Y(y), X(m.span + sx(y)), Y(y)));
 
-  // end supports: heavy slanted lines
-  ctx.strokeStyle = "#6f6f55";
-  ctx.lineWidth = 5;
-  line(ctx, X(0), Y(0), X(sx(m.width)), Y(m.width));
-  line(ctx, X(m.span), Y(0), X(m.span + sx(m.width)), Y(m.width));
+  // end diaphragms: double line offset ±2 px, one segment per girder pair
+  if (m.n > 1) {
+    ctx.strokeStyle = CAD.endDiaphragm;
+    ctx.lineWidth = W.planDiaphragm;
+    [0, m.span].forEach((x0) => {
+      for (let i = 0; i < gy.length - 1; i++) {
+        const ax = X(x0 + sx(gy[i])), ay = Y(gy[i]);
+        const bx = X(x0 + sx(gy[i + 1])), by = Y(gy[i + 1]);
+        const len = Math.hypot(bx - ax, by - ay) || 1;
+        const px = (-(by - ay) / len) * 2, py = ((bx - ax) / len) * 2;
+        line(ctx, ax + px, ay + py, bx + px, by + py);
+        line(ctx, ax - px, ay - py, bx - px, by - py);
+      }
+    });
+  }
 
-  // "CL of Bearing": dashed slanted lines through each end, extended past the girders
+  // CL of bearing: dashed 12/12 (Qt dash [8,8] x pen width 1.5)
+  const ext = Math.max(30 / v.scale, 0.3 * m.spacing);
   ctx.save();
-  ctx.strokeStyle = "#000";
-  ctx.lineWidth = 1.2;
-  ctx.setLineDash([8, 4]);
-  const ext = 0.12 * m.width + 0.5;
+  ctx.strokeStyle = CAD.bearing;
+  ctx.lineWidth = W.planBearing;
+  ctx.setLineDash([12, 12]);
   [0, m.span].forEach((x) => {
-    line(ctx, X(x + sx(m.width + ext)), Y(m.width + ext), X(x + sx(m.width)), Y(m.width));
-    line(ctx, X(x), Y(0), X(x + sx(-ext)), Y(-ext));
+    line(ctx, X(x + sx(-ext)), Y(-ext), X(x + sx(m.width + ext)), Y(m.width + ext));
   });
   ctx.restore();
 
-  ctx.fillStyle = "#000";
-  ctx.font = "13px sans-serif";
+  ctx.fillStyle = CAD.ink;
+  ctx.font = CAD.font;
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
   [0, m.span].forEach((x) => ctx.fillText("CL of Bearing", X(x + sx(m.width + ext)), Y(m.width + ext) - 4));
 
-  // dimensions (labels above their lines, like the desktop)
-  dimH(ctx, X(0), X(m.bracingSpacing), Y(0) + 38, `Bracing Spacing = ${m.bracingSpacing.toFixed(2)} m`, true);
-  dimH(ctx, X(0), X(m.span), Y(0) + 72, `Span Length = ${m.span.toFixed(1)} m`, true);
+  // dimensions
+  dimH(ctx, X(0), X(m.bracingSpacing), Y(0) + 38, `Bracing Spacing = ${m.bracingSpacing.toFixed(2)} m`, true, undefined, PLAN_DIM);
+  dimH(ctx, X(0), X(m.span), Y(0) + 72, `Span Length = ${m.span.toFixed(1)} m`, true, undefined, PLAN_DIM);
   if (m.n > 1) {
-    dimV(ctx, X(m.span + Math.max(0, sx(m.width))) + 34, Y(m.girderY[0]), Y(m.girderY[1]),
-         `Girder\nSpacing\n= ${m.spacing.toFixed(2)} m`);
+    dimV(ctx, X(m.span + Math.max(0, sx(m.width))) + 34, Y(gy[0]), Y(gy[1]),
+         `Girder\nSpacing\n= ${m.spacing.toFixed(2)} m`, PLAN_DIM);
   }
 }
