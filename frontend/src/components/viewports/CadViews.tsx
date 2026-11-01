@@ -17,6 +17,7 @@ const pick = (v: Values, ...keys: string[]): unknown => {
 
 const useValues = (): Values => useBridgeStore((s) => s.inputs) as Values;
 
+
 export function CrossSectionView() {
   const v = useValues();
   const model = useMemo(() => buildCrossSection({
