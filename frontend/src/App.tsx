@@ -26,6 +26,7 @@ import { OutputDock } from './components/docks/OutputDock';
 import { LogDock } from './components/docks/LogDock';
 import { ProjectLocationModal } from './components/dialogs/ProjectLocationModal';
 import { InputErrorDialog } from './components/dialogs/InputErrorDialog';
+import { ViewportContainer } from './components/viewports/ViewportContainer';
 
 export default function App() {
   const darkMode = useBridgeStore((s) => s.darkMode);
@@ -84,7 +85,9 @@ export default function App() {
               overflow: 'hidden',
             }}
           />
-
+          <div style={{ flex: 1, minHeight: 0, paddingBottom: isLogDockOpen ? 190 : 0 }}>
+            <ViewportContainer />
+          </div>
           {/* Log Window anchored at bottom of the center workspace */}
           {isLogDockOpen && <LogDock />}
         </div>
