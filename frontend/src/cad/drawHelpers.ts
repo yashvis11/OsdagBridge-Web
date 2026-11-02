@@ -2,8 +2,6 @@ import { CAD, W, CROSS_DIM, type DimStyle } from "./style";
 
 type Ctx = CanvasRenderingContext2D;
 
-
-
 export function line(ctx: Ctx, x1: number, y1: number, x2: number, y2: number): void {
   ctx.beginPath();
   ctx.moveTo(x1, y1);
@@ -11,7 +9,7 @@ export function line(ctx: Ctx, x1: number, y1: number, x2: number, y2: number): 
   ctx.stroke();
 }
 
-// Desktop arrowhead: tip + two back points, half-height = length / 2.
+// Desktop arrowhead: tip + two back points.
 export function arrow(ctx: Ctx, x: number, y: number, dx: number, dy: number, len: number, half: number): void {
   const a = Math.atan2(dy, dx);
   const bx = x - len * Math.cos(a), by = y - len * Math.sin(a);
@@ -25,7 +23,7 @@ function dimStyle(ctx: Ctx): void {
   ctx.strokeStyle = CAD.ink; ctx.fillStyle = CAD.ink; ctx.lineWidth = W.dim; ctx.font = CAD.font;
 }
 
-// Label on a white 90% box (the desktop's draw_text_with_background).
+// Label on a white box (the desktop's draw_text_with_background).
 function textBox(ctx: Ctx, text: string, x: number, y: number, align: CanvasTextAlign, alpha: number): void {
   ctx.font = CAD.font;
   const w = ctx.measureText(text).width, h = 16, pad = 2;
@@ -56,7 +54,6 @@ export function dimH(ctx: Ctx, x1: number, x2: number, y: number, label: string,
 }
 
 // Horizontal dimension with the label to the right (short dimensions).
-// Horizontal dimension with the label to the right (short dimensions).
 export function dimHSide(ctx: Ctx, x1: number, x2: number, y: number, label: string, st: DimStyle = CROSS_DIM): void {
   ctx.save();
   dimStyle(ctx);
@@ -82,7 +79,7 @@ export function dimV(ctx: Ctx, x: number, y1: number, y2: number, label: string,
   ctx.restore();
 }
 
-// ---- Concrete stipple (approximation of the desktop's create_concrete_brush) ----
+// ---- Concrete stipple (port of the desktop create_concrete_brush) ----
 function rng(seed: number) {            // mulberry32
   return () => {
     seed = (seed + 0x6d2b79f5) | 0;
@@ -125,7 +122,7 @@ export function concretePattern(ctx: Ctx): CanvasPattern | string {
         const ang = base + v * (Math.PI * 2 / 3) + rr(-0.45, 0.45);
         const d = rr(SIZE * 0.032, SIZE * 0.072);
         const px = cx + Math.cos(ang) * d, py = cy + Math.sin(ang) * d;
-        v ? g.lineTo(px, py) : g.moveTo(px, py);
+        if (v) g.lineTo(px, py); else g.moveTo(px, py);
       }
       g.closePath();
       g.fillStyle = `rgb(${h + sat},${h},${h - sat})`;

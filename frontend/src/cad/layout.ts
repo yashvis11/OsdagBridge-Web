@@ -1,5 +1,5 @@
 import type { FormValues } from "../types/cad";
-import { num } from "./num";
+import { num, toM } from "./num";
 
 export interface DeckLayout {
   n: number; overhang: number; spacing: number; overall: number;
@@ -9,17 +9,15 @@ export interface DeckLayout {
   girderX: number[];
 }
 
-// TODO: replace with DEFAULT_GIRDER_SPACING from desktop common.py and the real rule for default n.
-const DEFAULT_GIRDER_SPACING = 2.5;
+
 
 export function computeLayout(p: FormValues): DeckLayout {
   const carriagewayW = num(p.carriagewayWidth, 10);
-  const barrierW = num(p.barrierWidth, 0.45);                 // IRC 5 RCC crash barrier bottom_width
-  const rawRail = num(p.railingWidth, 0.375, true);           // desktop default 375 mm
-  const railW = rawRail > 10 ? rawRail / 1000 : rawRail;      // desktop mm-to-m rule
-  const footpathW = num(p.footpathWidth, 1.5, true);
+  const barrierW = toM(num(p.barrierWidth, 0.45));            // IRC 5 RCC crash barrier bottom_width 450 mm
+  const railW = toM(num(p.railingWidth, 0.375, true));        // desktop DEFAULT_RAILING_WIDTH
+  const footpathW = toM(num(p.footpathWidth, 1.5, true));
 
-  const cfg = String(p.footpath ?? "Single Side");            // None | Single Side | Both Sides
+  const cfg = String(p.footpath ?? "None");                   // None | Single Side | Both Sides
   const fpLeft = footpathW > 0 && (cfg === "Single Side" || cfg === "Both Sides");
   const fpRight = footpathW > 0 && cfg === "Both Sides";
   const fpBlock = footpathW + railW;
@@ -28,10 +26,12 @@ export function computeLayout(p: FormValues): DeckLayout {
   const leftBarrierX = fpLeft ? fpBlock : 0;
   const rightBarrierX = overall - (fpRight ? fpBlock : 0) - barrierW;
 
-  // desktop BridgeConfigurationSolver: "girders" case, or "overhang" case if the user typed one
+  // desktop BridgeConfigurationSolver: "girders" case (overhang = spacing / 2, n * spacing = overall),
+  // or the "overhang" case when the user typed an overhang
   const nGiven = Math.round(num(p.girders, 0));
-  const n = nGiven >= 2 ? nGiven : Math.max(2, Math.ceil(overall / DEFAULT_GIRDER_SPACING));
-  const overhangGiven = num(p.overhang, 0);
+    // TODO: the default-n rule is a guess; replace it with the desktop's (defaults.py ~lines 905-985)
+  const n = nGiven >= 2 ? nGiven : Math.max(2, Math.ceil(overall / num(p.defaultGirderSpacing, 2.5)));
+  const overhangGiven = toM(num(p.overhang, 0));
   const overhang = overhangGiven > 0 ? overhangGiven : overall / n / 2;
   const spacing = overhangGiven > 0 ? (overall - 2 * overhang) / (n - 1) : overall / n;
   const girderX = Array.from({ length: n }, (_, i) => overhang + i * spacing);

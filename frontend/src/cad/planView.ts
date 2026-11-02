@@ -15,7 +15,7 @@ export interface PlanModel extends CadModel {
 export function buildPlan(p: FormValues): PlanModel {
   const { n, spacing, girderX } = computeLayout(p);
   const span = num(p.span, 20);
-  const panels = Math.max(1, Math.round(span / num(p.bracingSpacing, 3.5)));
+  const panels = Math.max(1, Math.round(span / num(p.bracingSpacing, 3.0)));   // desktop: round(span / spacing)
   const girderY = girderX.map((x) => x - girderX[0]);
   const width = Math.max(girderY[girderY.length - 1], 1);
 
@@ -23,7 +23,7 @@ export function buildPlan(p: FormValues): PlanModel {
   const raw = Number(p.skew);
   const skew = Number.isFinite(raw) ? Math.max(-45, Math.min(45, raw)) : 0;
   const tanSkew = Math.tan((skew * Math.PI) / 180);
-  const shift = -tanSkew * width;                      // x offset of the top girder (matches the desktop's direction)
+  const shift = -tanSkew * width;
 
   return {
     n, spacing, span, panels, bracingSpacing: span / panels, width, girderY, tanSkew,
@@ -31,7 +31,6 @@ export function buildPlan(p: FormValues): PlanModel {
     pad: { l: 50, r: 150, t: 60, b: 85 },
   };
 }
-
 
 export function drawPlan(ctx: CanvasRenderingContext2D, m: PlanModel, v: View): void {
   const X = (x: number) => toX(x, v);

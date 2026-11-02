@@ -5,10 +5,10 @@ import { fitView } from "../../cad/geometry";
 
 interface CadCanvasProps<M extends CadModel> { model: M; draw: DrawFn<M> }
 
-const boxStyle: CSSProperties = {
+const boxStyle: CSSProperties = { //structure of the outer box
   position: "absolute", inset: 0, background: "#fff", overflow: "hidden",
 };
-const btnColumn: CSSProperties = {
+const btnColumn: CSSProperties = { //positioning of the zoom and reset buttons
   position: "absolute", top: 8, right: 8, display: "flex", flexDirection: "column", gap: 4,
 };
 const btn: CSSProperties = { width: 28, height: 28, cursor: "pointer" };
