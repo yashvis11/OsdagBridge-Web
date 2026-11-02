@@ -1,9 +1,9 @@
-import type { CadModel, FormValues, View } from "../types/cad";
+import type { CadModel, FormValues, HitZone, HoverState, View } from "../types/cad";
 import { num } from "./num";
 import { computeLayout } from "./layout";
 import { toX, toY } from "./geometry";
-import { line, dimH, dimV } from "./drawHelpers";
-import { CAD, W, PLAN_DIM } from "./style";
+import { line, dimH, dimV, lineShape, drawHoverLabel } from "./drawHelpers";
+import { CAD, W, HOVER, HOVER_W, PICK_PAD, PLAN_DIM } from "./style";
 
 export interface PlanModel extends CadModel {
   n: number; spacing: number; span: number;
@@ -15,7 +15,8 @@ export interface PlanModel extends CadModel {
 export function buildPlan(p: FormValues): PlanModel {
   const { n, spacing, girderX } = computeLayout(p);
   const span = num(p.span, 20);
-  const panels = Math.max(1, Math.round(span / num(p.bracingSpacing, 3.0)));   // desktop: round(span / spacing)
+  // desktop shows 9 panels (2.78 m) for 25 m, which fits ceil(span / 3.0)
+  const panels = Math.max(1, Math.ceil(span / num(p.bracingSpacing, 3.0)));
   const girderY = girderX.map((x) => x - girderX[0]);
   const width = Math.max(girderY[girderY.length - 1], 1);
 
@@ -32,31 +33,49 @@ export function buildPlan(p: FormValues): PlanModel {
   };
 }
 
-export function drawPlan(ctx: CanvasRenderingContext2D, m: PlanModel, v: View): void {
+export function drawPlan(
+  ctx: CanvasRenderingContext2D, m: PlanModel, v: View, hover: HoverState | null
+): HitZone[] {
   const X = (x: number) => toX(x, v);
   const Y = (y: number) => toY(y, v);
   const sx = (y: number) => -m.tanSkew * y;            // skew shift at height y
   const gy = m.girderY;
+  const zones: HitZone[] = [];
+  const hot = (id: string) => hover?.id === id;
+  const mid = (a: number, b: number) => (a + b) / 2;
 
   // cross bracing: one segment per girder pair, interior stations only
-  ctx.strokeStyle = CAD.crossBracing;
-  ctx.lineWidth = W.planBracing;
+  ctx.strokeStyle = hot("cross_bracing") ? HOVER.grey : CAD.crossBracing;
+  ctx.lineWidth = hot("cross_bracing") ? HOVER_W.planBracing : W.planBracing;
   for (let k = 1; k < m.panels; k++) {
     const x0 = k * m.bracingSpacing;
     for (let i = 0; i < gy.length - 1; i++) {
-      line(ctx, X(x0 + sx(gy[i])), Y(gy[i]), X(x0 + sx(gy[i + 1])), Y(gy[i + 1]));
+      const ax = X(x0 + sx(gy[i])), ay = Y(gy[i]);
+      const bx = X(x0 + sx(gy[i + 1])), by = Y(gy[i + 1]);
+      line(ctx, ax, ay, bx, by);
+      zones.push({
+        id: "cross_bracing", label: "Cross Bracing", shape: lineShape(ax, ay, bx, by, PICK_PAD),
+        anchor: [mid(ax, bx), mid(ay, by)], dx: -52, dy: -43,
+      });
     }
   }
 
   // girders
-  ctx.strokeStyle = CAD.girder;
-  ctx.lineWidth = W.planGirder;
-  gy.forEach((y) => line(ctx, X(sx(y)), Y(y), X(m.span + sx(y)), Y(y)));
+  ctx.strokeStyle = hot("girder") ? HOVER.grey : CAD.girder;
+  ctx.lineWidth = hot("girder") ? HOVER_W.planGirder : W.planGirder;
+  gy.forEach((y) => {
+    const ax = X(sx(y)), bx = X(m.span + sx(y)), py = Y(y);
+    line(ctx, ax, py, bx, py);
+    zones.push({
+      id: "girder", label: "Girder", shape: lineShape(ax, py, bx, py, PICK_PAD),
+      anchor: [mid(ax, bx), py], dx: -25, dy: -35,
+    });
+  });
 
   // end diaphragms: double line offset ±2 px, one segment per girder pair
   if (m.n > 1) {
-    ctx.strokeStyle = CAD.endDiaphragm;
-    ctx.lineWidth = W.planDiaphragm;
+    ctx.strokeStyle = hot("end_diaphragm") ? HOVER.grey : CAD.endDiaphragm;
+    ctx.lineWidth = hot("end_diaphragm") ? HOVER_W.planDiaphragm : W.planDiaphragm;
     [0, m.span].forEach((x0) => {
       for (let i = 0; i < gy.length - 1; i++) {
         const ax = X(x0 + sx(gy[i])), ay = Y(gy[i]);
@@ -65,18 +84,27 @@ export function drawPlan(ctx: CanvasRenderingContext2D, m: PlanModel, v: View): 
         const px = (-(by - ay) / len) * 2, py = ((bx - ax) / len) * 2;
         line(ctx, ax + px, ay + py, bx + px, by + py);
         line(ctx, ax - px, ay - py, bx - px, by - py);
+        zones.push({
+          id: "end_diaphragm", label: "End Diaphragm", shape: lineShape(ax, ay, bx, by, PICK_PAD + 2),
+          anchor: [mid(ax, bx), mid(ay, by)], dx: x0 === 0 ? -82 : 90, dy: 0,
+        });
       }
     });
   }
 
-  // CL of bearing: dashed 12/12 (Qt dash [8,8] x pen width 1.5)
+  // CL of bearing: dashed 12/12 (Qt dash [8,8] x pen width 1.5), extends past the outer girders
   const ext = Math.max(30 / v.scale, 0.3 * m.spacing);
   ctx.save();
-  ctx.strokeStyle = CAD.bearing;
-  ctx.lineWidth = W.planBearing;
+  ctx.strokeStyle = hot("bearing") ? HOVER.grey : CAD.bearing;
+  ctx.lineWidth = hot("bearing") ? HOVER_W.planBearing : W.planBearing;
   ctx.setLineDash([12, 12]);
   [0, m.span].forEach((x) => {
-    line(ctx, X(x + sx(-ext)), Y(-ext), X(x + sx(m.width + ext)), Y(m.width + ext));
+    const ax = X(x + sx(-ext)), ay = Y(-ext), bx = X(x + sx(m.width + ext)), by = Y(m.width + ext);
+    line(ctx, ax, ay, bx, by);
+    zones.push({
+      id: "bearing", label: "CL of Bearing", shape: lineShape(ax, ay, bx, by, PICK_PAD),
+      anchor: [mid(ax, bx), mid(ay, by)], dx: x === 0 ? -80 : 80, dy: 0,
+    });
   });
   ctx.restore();
 
@@ -93,4 +121,7 @@ export function drawPlan(ctx: CanvasRenderingContext2D, m: PlanModel, v: View): 
     dimV(ctx, X(m.span + Math.max(0, sx(m.width))) + 34, Y(gy[0]), Y(gy[1]),
          `Girder\nSpacing\n= ${m.spacing.toFixed(2)} m`, PLAN_DIM);
   }
+
+  if (hover && zones[hover.zone]?.id === hover.id) drawHoverLabel(ctx, zones[hover.zone]);
+  return zones;
 }

@@ -1,4 +1,5 @@
-import { CAD, W, CROSS_DIM, type DimStyle } from "./style";
+import { CAD, W, HOVER, CROSS_DIM, type DimStyle } from "./style";
+import type { HitShape, HitZone } from "../types/cad";
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -24,13 +25,14 @@ function dimStyle(ctx: Ctx): void {
 }
 
 // Label on a white box (the desktop's draw_text_with_background).
-function textBox(ctx: Ctx, text: string, x: number, y: number, align: CanvasTextAlign, alpha: number): void {
+export function textBox(ctx: Ctx, text: string, x: number, y: number, align: CanvasTextAlign,
+                        alpha: number, color: string = CAD.ink): void {
   ctx.font = CAD.font;
   const w = ctx.measureText(text).width, h = 16, pad = 2;
   const left = align === "center" ? x - w / 2 : align === "left" ? x : x - w;
   ctx.fillStyle = `rgba(255,255,255,${alpha})`;
   ctx.fillRect(left - pad, y - h / 2, w + 2 * pad, h);
-  ctx.fillStyle = CAD.ink; ctx.textAlign = align; ctx.textBaseline = "middle";
+  ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
   ctx.fillText(text, x, y);
 }
 
@@ -66,8 +68,9 @@ export function dimHSide(ctx: Ctx, x1: number, x2: number, y: number, label: str
   ctx.restore();
 }
 
-// Vertical dimension, label to the right of the line.
-export function dimV(ctx: Ctx, x: number, y1: number, y2: number, label: string, st: DimStyle = CROSS_DIM): void {
+// Vertical dimension; label to the right of the line, or to the left (right-aligned).
+export function dimV(ctx: Ctx, x: number, y1: number, y2: number, label: string,
+                     st: DimStyle = CROSS_DIM, side: "left" | "right" = "right"): void {
   ctx.save();
   dimStyle(ctx);
   const dir = y2 > y1 ? 1 : -1;
@@ -75,7 +78,11 @@ export function dimV(ctx: Ctx, x: number, y1: number, y2: number, label: string,
   line(ctx, x - TICK, y1, x + TICK, y1); line(ctx, x - TICK, y2, x + TICK, y2);
   arrow(ctx, x, y1, 0, -dir, st.len, st.half); arrow(ctx, x, y2, 0, dir, st.len, st.half);
   const rows = label.split("\n"), mid = (y1 + y2) / 2;
-  rows.forEach((r, i) => textBox(ctx, r, x + 12, mid + (i - (rows.length - 1) / 2) * 16, "left", st.bgAlpha));
+  rows.forEach((r, i) => {
+    const ry = mid + (i - (rows.length - 1) / 2) * 16;
+    if (side === "right") textBox(ctx, r, x + 12, ry, "left", st.bgAlpha);
+    else textBox(ctx, r, x - 12, ry, "right", st.bgAlpha);
+  });
   ctx.restore();
 }
 
@@ -149,4 +156,40 @@ export function concretePattern(ctx: Ctx): CanvasPattern | string {
   pat.setTransform(new DOMMatrix().scale(1 / dpr));
   cached = { dpr, pat };
   return pat;
+}
+
+// ---- hit testing + hover label ----
+export const rectShape = (x: number, y: number, w: number, h: number): HitShape => ({ kind: "rect", x, y, w, h });
+export const polyShape = (pts: [number, number][]): HitShape => ({ kind: "poly", pts });
+
+// A thin line turned into a quad so it can be hovered.
+export function lineShape(x1: number, y1: number, x2: number, y2: number, pad: number): HitShape {
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+  const ox = (-dy / len) * pad, oy = (dx / len) * pad;
+  return polyShape([[x1 + ox, y1 + oy], [x2 + ox, y2 + oy], [x2 - ox, y2 - oy], [x1 - ox, y1 - oy]]);
+}
+
+export function hits(s: HitShape, px: number, py: number): boolean {
+  if (s.kind === "rect") return px >= s.x && px <= s.x + s.w && py >= s.y && py <= s.y + s.h;
+  let inside = false;
+  const p = s.pts;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+    const [xi, yi] = p[i], [xj, yj] = p[j];
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// Dotted leader from the dot to the label, label box drawn on top.
+export function drawHoverLabel(ctx: Ctx, z: HitZone): void {
+  const [ax, ay] = z.anchor;
+  const lx = ax + z.dx, ly = ay + z.dy;
+  ctx.save();
+  ctx.strokeStyle = HOVER.leader; ctx.lineWidth = 1; ctx.setLineDash([1, 3]);
+  line(ctx, ax, ay, lx, ly);
+  ctx.setLineDash([]);
+  ctx.fillStyle = HOVER.leader;
+  ctx.beginPath(); ctx.arc(ax, ay, 3, 0, Math.PI * 2); ctx.fill();
+  textBox(ctx, z.label, lx, ly, "center", 1, HOVER.label);
+  ctx.restore();
 }

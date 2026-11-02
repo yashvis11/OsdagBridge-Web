@@ -40,6 +40,8 @@ function useCadInputs(): Values | null {
       span: get("KEY_SPAN"),
       carriagewayWidth: get("KEY_CARRIAGEWAY_WIDTH"),
       footpath: get("KEY_FOOTPATH"),
+      includeMedian: get("KEY_INCLUDE_MEDIAN"),
+      medianWidth: get("KEY_MD_WIDTH"),
       skew: get("KEY_SKEW_ANGLE"),
       girders: get("KEY_TS_NO_OF_GIRDERS"),
       overhang: get("KEY_TS_DECK_OVERHANG"),
