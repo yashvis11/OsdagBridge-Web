@@ -9,3 +9,5 @@ export function num(value: unknown, fallback: number, allowZero = false): number
 export const toM = (v: number): number => (v > 10 ? v / 1000 : v);
 // Round half up on the decimal value (10.275 -> "10.28"), ignoring binary float noise.
 export const fmt = (v: number, d = 2): string => (Math.round((v + 1e-9) * 10 ** d) / 10 ** d).toFixed(d);
+// "Span Length = 25.0 m" once the value is known, just "Span Length" before the user enters it.
+export const lbl = (name: string, show: boolean, value: string): string => (show ? `${name} = ${value}` : name);

@@ -84,8 +84,7 @@ export default function App() {
               position: 'relative',
               overflow: 'hidden',
             }}
-          />
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: isLogDockOpen ? 190 : 0 }}>
+          >
             <ViewportContainer />
           </div>
           {/* Log Window anchored at bottom of the center workspace */}

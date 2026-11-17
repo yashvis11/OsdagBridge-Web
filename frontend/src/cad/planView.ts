@@ -19,29 +19,43 @@
  *     constants and passes short field names (span, skew, girders, ...).
  */
 import type { CadModel, FormValues, HitZone, HoverState, View } from "../types/cad";
-import { num, fmt } from "./num";
+import { num, fmt, lbl } from "./num";
 import { computeLayout } from "./layout";
 import { toX, toY } from "./geometry";
 import { line, dimH, dimV, lineShape, drawHoverLabel, resetLabels } from "./drawHelpers";
 import { CAD, W, HOVER, HOVER_W, PICK_PAD, PLAN_DIM } from "./style";
 
 export interface PlanModel extends CadModel {
-  n: number; spacing: number; span: number;
-  panels: number; bracingSpacing: number; width: number; girderY: number[];
+  n: number;
+  spacing: number;
+  span: number;
+  panels: number;
+  bracingSpacing: number;
+  width: number;
+  girderY: number[];
   tanSkew: number;
+  showSpan: boolean;
+  showCarriageway: boolean;
 }
 
 // Plan view: horizontal = span, vertical = across the bridge, ends slanted by the skew angle.
 //function to calculate bridge components for the plan view(bottom)
 export function buildPlan(p: FormValues): PlanModel {
-  const { n, spacing, girderX } = computeLayout(p);
-  const span = num(p.span, 20);
+  const { n, girderX, hasCarriageway, labelSpacing } = computeLayout(p);
+  const hasSpan = num(p.span, 0) > 0;
+  const span = hasSpan ? num(p.span, 0) : 35; 
   const bracingCount = Math.round(num(p.bracingCount, 0));
-  const count = bracingCount >= 1
-    ? bracingCount
-    : Math.max(1, Math.ceil(Number((span / num(p.bracingInitialSpacing, 3.0)).toFixed(9)) - 1));
-  const panels = count + 1;
-  const girderY = girderX.map((x) => x - girderX[0]);
+  const count =
+    bracingCount >= 1
+      ? bracingCount
+      : Math.max(
+          1,
+          Math.ceil(
+            Number((span / num(p.bracingInitialSpacing, 3.0)).toFixed(9)) - 1,
+          ),
+        );
+  const panels = hasSpan ? count + 1 : 10; 
+  const girderY = girderX.map((_, i) => i * labelSpacing); 
   const width = Math.max(girderY[girderY.length - 1], 1);
 
   // Skew can be negative, so it can't go through num().
@@ -51,10 +65,24 @@ export function buildPlan(p: FormValues): PlanModel {
   const shift = -tanSkew * width;
 
   return {
-    n, spacing, span, panels, bracingSpacing: span / panels, width, girderY, tanSkew,
-    bounds: { minX: Math.min(0, shift), maxX: span + Math.max(0, shift), minY: 0, maxY: width },
+    n,
+    spacing: labelSpacing,
+    span,
+    panels,
+    bracingSpacing: span / panels,
+    width,
+    girderY,
+    tanSkew,
+    bounds: {
+      minX: Math.min(0, shift),
+      maxX: span + Math.max(0, shift),
+      minY: 0,
+      maxY: width,
+    },
     pad: { l: 50, r: 150, t: 60, b: 85 },
-    minScale: 15,        // px per metre; the plan view scrolls vertically when the bridge is very wide
+    minScale: 15, // px per metre; the plan view scrolls vertically when the bridge is very wide
+    showSpan: hasSpan,
+    showCarriageway: hasCarriageway,
   };
 }
 
@@ -150,11 +178,35 @@ export function drawPlan(
   [0, m.span].forEach((x) => ctx.fillText("CL of Bearing", X(x + sx(m.width + ext)), Y(m.width + ext) - 4));
 
   // dimensions
-  dimH(ctx, X(0), X(m.bracingSpacing), Y(0) + 38, `Bracing Spacing = ${fmt(m.bracingSpacing, 2)} m`, true, undefined, PLAN_DIM);
-  dimH(ctx, X(0), X(m.span), Y(0) + 72, `Span Length = ${fmt(m.span, 1)} m`, true, undefined, PLAN_DIM);
+  dimH(
+    ctx,
+    X(0),
+    X(m.bracingSpacing),
+    Y(0) + 38,
+    lbl("Bracing Spacing", m.showSpan, `${fmt(m.bracingSpacing, 2)} m`),
+    true,
+    undefined,
+    PLAN_DIM,
+  );
+  dimH(
+    ctx,
+    X(0),
+    X(m.span),
+    Y(0) + 72,
+    lbl("Span Length", m.showSpan, `${fmt(m.span, 1)} m`),
+    true,
+    undefined,
+    PLAN_DIM,
+  );
   if (m.n > 1) {
-    dimV(ctx, X(m.span + Math.max(0, sx(m.width))) + 34, Y(gy[0]), Y(gy[1]),
-         `Girder\nSpacing\n= ${fmt(m.spacing, 2)} m`, PLAN_DIM);
+    dimV(
+      ctx,
+      X(m.span + Math.max(0, sx(m.width))) + 34,
+      Y(gy[0]),
+      Y(gy[1]),
+      m.showCarriageway ? `Girder\nSpacing\n= ${fmt(m.spacing, 2)} m` : "Girder\nSpacing",
+      PLAN_DIM,
+    );
   }
 
   if (hover && zones[hover.zone]?.id === hover.id) drawHoverLabel(ctx, zones[hover.zone]);

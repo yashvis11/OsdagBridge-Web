@@ -18,7 +18,7 @@
  *     constants and passes short field names (span, footpath, girders, ...).
  */
 import type { CadModel, FormValues, HitZone, HoverState, View } from "../types/cad";
-import { num, toM, fmt } from "./num";
+import { num, toM, fmt, lbl } from "./num";
 import { computeLayout, type DeckLayout } from "./layout";
 import { toX, toY } from "./geometry";
 import { line, dimH, concretePattern, rectShape, polyShape, lineShape, drawHoverLabel, resetLabels } from "./drawHelpers";
@@ -265,9 +265,29 @@ export function drawCrossSection(
 
  
   
-  dimH(ctx, X(m.cw1[0]), X(m.cw1[1]), topY, `Carriageway Width = ${fmt(m.carriagewayW, 2)} m`, false, deckTopY);
+  dimH(
+    ctx,
+    X(m.cw1[0]),
+    X(m.cw1[1]),
+    topY,
+    lbl("Carriageway Width", m.hasCarriageway, `${fmt(m.carriagewayW, 2)} m`),
+    false,
+    deckTopY,
+  );
   if (m.cw2) {
-    dimH(ctx, X(m.cw2[0]), X(m.cw2[1]), topY, `Carriageway Width = ${fmt(m.carriagewayW, 2)} m`, false, deckTopY);
+    dimH(
+      ctx,
+      X(m.cw2[0]),
+      X(m.cw2[1]),
+      topY,
+      lbl(
+        "Carriageway Width",
+        m.hasCarriageway,
+        `${fmt(m.carriagewayW, 2)} m)`,
+      ),
+      false,
+      deckTopY,
+    );
   }
    if (m.fpLeft) {
     dimH(ctx, X(m.railW), X(m.leftBarrierX), topY, `Footpath Width = ${fmt(m.footpathW, 2)} m`, false, fpTopY);
@@ -279,20 +299,55 @@ export function drawCrossSection(
 
   
 
-  dimH(ctx, X(0), X(m.girderX[0]), gBottom + 28, `Overhang = ${fmt(m.overhang, 2)} m`, true, gBottom);
+  dimH(
+    ctx,
+    X(0),
+    X(m.girderX[0]),
+    gBottom + 28,
+    lbl("Overhang", m.hasCarriageway, `${fmt(m.labelOverhang, 2)} m`),
+    true,
+    gBottom,
+  );
   if (m.n > 2) {
-    dimH(ctx, X(m.girderX[1]), X(m.girderX[2]), gBottom + 28, `Girder Spacing = ${fmt(m.spacing, 2)} m`, true, gBottom);
+    dimH(
+      ctx,
+      X(m.girderX[1]),
+      X(m.girderX[2]),
+      gBottom + 28,
+      lbl("Girder Spacing", m.hasCarriageway, `${fmt(m.labelSpacing, 2)} m`),
+      true,
+      gBottom,
+    );
   } else if (m.n === 2) {
-    dimH(ctx, X(m.girderX[0]), X(m.girderX[1]), gBottom + 28, `Girder Spacing = ${fmt(m.spacing, 2)} m`, true, gBottom);
+    dimH(
+      ctx,
+      X(m.girderX[0]),
+      X(m.girderX[1]),
+      gBottom + 28,
+      lbl("Girder Spacing", m.hasCarriageway, `${fmt(m.labelSpacing, 2)} m`),
+      true,
+      gBottom,
+    );
   }
-  dimH(ctx, X(0), X(m.overall), gBottom + 66, `Overall Bridge Width = ${fmt(m.overall, 2)} m`, true, gBottom);
+  dimH(
+    ctx,
+    X(0),
+    X(m.overall),
+    gBottom + 66,
+    lbl("Overall Bridge Width", m.hasCarriageway, `${fmt(m.overall, 2)} m`),
+    true,
+    gBottom,
+  );
 
   ctx.fillStyle = CAD.ink;
   ctx.font = CAD.font;
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
-  ctx.fillText(`Deck Thickness = ${Math.round(m.deckT * 1000)} mm`,
-               X((m.cw1[0] + m.cw1[1]) / 2), Y(m.deckT) - 10);
+  ctx.fillText(
+    lbl("Deck Thickness", m.hasCarriageway, `${Math.round(m.deckT * 1000)} mm`),
+    X((m.cw1[0] + m.cw1[1]) / 2),
+    Y(m.deckT) - 10,
+  );
 
   
   if (hover && zones[hover.zone]?.id === hover.id) drawHoverLabel(ctx, zones[hover.zone]);

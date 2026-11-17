@@ -51,7 +51,7 @@ export function textBox(ctx: Ctx, text: string, x: number, y: number, align: Can
   ctx.font = CAD.font;
   const w = ctx.measureText(text).width, h = 16, pad = 2;
   const left = align === "center" ? x - w / 2 : align === "left" ? x : x - w;
-  ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+  ctx.fillStyle = `rgba(${CAD.bgRgb},${alpha})`;
   ctx.fillRect(left - pad, y - h / 2, w + 2 * pad, h);
   ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
   ctx.fillText(text, x, y);
@@ -208,7 +208,9 @@ export function concretePattern(ctx: Ctx): CanvasPattern | string {
 // ---- hit testing + hover label ----
 export const rectShape = (x: number, y: number, w: number, h: number): HitShape => ({ kind: "rect", x, y, w, h });
 export const polyShape = (pts: [number, number][]): HitShape => ({ kind: "poly", pts });
-
+// Shows "Name = value" only when the value is real; otherwise just "Name".
+export const lbl = (name: string, known: boolean, value: string): string =>
+  known ? `${name} = ${value}` : name;
 
 export function lineShape(x1: number, y1: number, x2: number, y2: number, pad: number): HitShape {
   const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
