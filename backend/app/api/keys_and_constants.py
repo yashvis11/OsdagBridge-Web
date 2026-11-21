@@ -12,7 +12,7 @@ router = APIRouter(prefix="", tags=["Constants"])
 @router.get("/constants") 
 def get_keys_constants():
     try:
-        from osdagbridge_core.utils import common
+        from osdagbridge.core.utils import common
         keys_constants_dict = {
             name: value
             for name, value in vars(common).items() #gets items in the module as a dictionary to evaluate every single key value pair

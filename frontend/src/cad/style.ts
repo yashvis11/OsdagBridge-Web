@@ -25,7 +25,7 @@ export const CAD = {
   outlineGrey: "rgb(120,120,120)",
   dimExt: "rgb(100,100,100)",
   font: "12px Arial, sans-serif",
-  bgRgb: "255,255,255", // pane background as "r,g,b", used behind labels
+  bgRgb: "255,255,255", // pane colours used behind the labels
 };
 
 export const W = {
@@ -88,8 +88,8 @@ const LIGHT_INK = "rgb(0,0,0)",
   LIGHT_EXT = "rgb(100,100,100)";
 
 export function setCadTheme(dark: boolean, bg: string, text: string): void {
-  const m = bg.match(/\d+(\.\d+)?/g);
-  CAD.bgRgb = m && m.length >= 3 ? `${m[0]},${m[1]},${m[2]}` : "255,255,255";
+  const m = bg.match(/\d+(\.\d+)?/g);  //extracts the colour numbers of the current background 
+  CAD.bgRgb = m && m.length >= 3 ? `${m[0]},${m[1]},${m[2]}` : "255,255,255";  //sets the new background colour
   CAD.ink = dark ? text : LIGHT_INK;
   CAD.bearing = dark ? "rgb(170,170,170)" : LIGHT_BEARING;
   CAD.dimExt = dark ? "rgb(150,150,150)" : LIGHT_EXT;

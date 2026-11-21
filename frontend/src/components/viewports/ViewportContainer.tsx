@@ -16,7 +16,7 @@ const paneStyle: React.CSSProperties = {
 };
 
 export const ViewportContainer: React.FC = () => {
-  const showCrossSection = useBridgeStore((s) => s.showCrossSection);
+  const showCrossSection = useBridgeStore((s) => s.showCrossSection);  //reads value from the bridge to make the view appear and diappear
   const showTopView = useBridgeStore((s) => s.showTopView);
 
   return (
@@ -29,7 +29,7 @@ export const ViewportContainer: React.FC = () => {
         background: "var(--bg-surface)", // theme variable: confirm the name, see below
       }}
     >
-      {showCrossSection && (
+      {showCrossSection && (  //shows the cross section only when showCrossSection is true
         <div style={paneStyle}>
           <CrossSectionView />
         </div>

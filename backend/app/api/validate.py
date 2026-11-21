@@ -11,7 +11,7 @@ def validate_field(payload: ValidateFieldRequest):
     key = payload.key
     val = payload.value
     try:
-        from osdagbridge_core.bridge_types.plate_girder.validator import BridgeInputValidator
+        from osdagbridge.core.bridge_types.plate_girder.validator import BridgeInputValidator
         validator = BridgeInputValidator()
         result = validator.validate_basic_inputs(key, payload.all_inputs or {key: val})
         if result is not None:

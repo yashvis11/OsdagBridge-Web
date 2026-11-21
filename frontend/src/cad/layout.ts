@@ -46,12 +46,12 @@ export interface DeckLayout {
   labelOverhang: number;
 }
 
-const PLACEHOLDER = { n: 4, spacing: 2.75, overhang: 1.0 };
+const PLACEHOLDER = { n: 4, spacing: 2.75, overhang: 1.0 };  //constructed when no input is provided
 export function computeLayout(p: FormValues): DeckLayout {
   const hasCarriageway = num(p.carriagewayWidth, 0) > 0; // false until the user types a value
   const hasSpan = num(p.span, 0) > 0;
-  const solved = hasSpan && hasCarriageway; 
-  const carriagewayW = hasCarriageway ? num(p.carriagewayWidth, 0) : 9.35; 
+  const solved = hasSpan && hasCarriageway; //false if user has not entered any values
+  const carriagewayW = hasCarriageway ? num(p.carriagewayWidth, 0) : 9.35;
   const barrierW = toM(num(p.barrierWidth, 0.45));
   const railW = toM(num(p.railingWidth, 0.375, true));
   const footpathW = toM(num(p.footpathWidth, 1.5, true));
@@ -82,6 +82,8 @@ export function computeLayout(p: FormValues): DeckLayout {
   const overall = rightBarrierX + barrierW + blockR;
 
   //calculation of girders, girder spacing and overhang
+
+  //if number of girders is not give and solved = false(no user inputs) placeholder bridge is constructed
   const nGiven = Math.round(num(p.girders, 0)) || (solved ? 0 : PLACEHOLDER.n);
   const ratio = Number((overall / num(p.defaultGirderSpacing, 2.5)).toFixed(9));
   const n = nGiven >= 2 ? nGiven : Math.max(2, Math.ceil(ratio)); //no of girders

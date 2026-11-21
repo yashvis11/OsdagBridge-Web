@@ -17,9 +17,9 @@ def get_basic_input_schema():
                 options property is only there for dropdown/combox type
                 all keys in the BASIC_INPUT_DICT have a deafult value
         '''
-        from osdagbridge_core.bridge_types.plate_girder.ui_fields import FrontendData
-        from osdagbridge_core.bridge_types.plate_girder.defaults import BASIC_INPUT_DICT
-        from osdagbridge_core.utils.common import SPAN_MIN, SPAN_MAX, CARRIAGEWAY_WIDTH_MIN, CARRIAGEWAY_WIDTH_MIN_WITH_MEDIAN, CARRIAGEWAY_WIDTH_MAX_LIMIT, SKEW_ANGLE_MIN, SKEW_ANGLE_MAX, SKEW_ANGLE_DEFAULT
+        from osdagbridge.core.bridge_types.plate_girder.ui_fields import FrontendData
+        from osdagbridge.core.bridge_types.plate_girder.defaults import BASIC_INPUT_DICT
+        from osdagbridge.core.utils.common import SPAN_MIN, SPAN_MAX, CARRIAGEWAY_WIDTH_MIN, CARRIAGEWAY_WIDTH_MIN_WITH_MEDIAN, CARRIAGEWAY_WIDTH_MAX_LIMIT, SKEW_ANGLE_MIN, SKEW_ANGLE_MAX, SKEW_ANGLE_DEFAULT
 
 
         fields = FrontendData().input_values()

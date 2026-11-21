@@ -46,14 +46,26 @@ function dimStyle(ctx: Ctx): void {
 }
 
 //setup for the text above the dimension lines
-export function textBox(ctx: Ctx, text: string, x: number, y: number, align: CanvasTextAlign,
-                        alpha: number, color: string = CAD.ink): void {
-  ctx.font = CAD.font;
-  const w = ctx.measureText(text).width, h = 16, pad = 2;
+export function textBox(
+  ctx: Ctx,
+  text: string,
+  x: number,
+  y: number,
+  align: CanvasTextAlign,
+  alpha: number,
+  color: string = CAD.ink,
+  font: string = CAD.font,
+): void {
+  ctx.font = font;
+  const w = ctx.measureText(text).width,
+    h = 16,
+    pad = 2;
   const left = align === "center" ? x - w / 2 : align === "left" ? x : x - w;
   ctx.fillStyle = `rgba(${CAD.bgRgb},${alpha})`;
   ctx.fillRect(left - pad, y - h / 2, w + 2 * pad, h);
-  ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = "middle";
   ctx.fillText(text, x, y);
 }
 
